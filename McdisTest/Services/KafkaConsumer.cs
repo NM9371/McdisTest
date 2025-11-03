@@ -1,5 +1,6 @@
 ﻿using Confluent.Kafka;
 using McdisTest.Data;
+using System.Text.Json;
 
 namespace McdisTest.Services
 {
@@ -56,7 +57,7 @@ namespace McdisTest.Services
                     var result = consumer.Consume();
 
                     // Парсим JSON-сообщение в UserEvent
-                    var userEvent = UserEvent.FromJson(result.Message.Value);
+                    var userEvent = DeserializeUserEvent(result.Message.Value);
 
                     if (userEvent != null)
                     {
@@ -68,6 +69,24 @@ namespace McdisTest.Services
             catch (OperationCanceledException)
             {
                 consumer.Close();
+            }
+        }
+
+        public static UserEvent? DeserializeUserEvent(string json)
+        {
+            try
+            {
+                UserEvent? userEvent = JsonSerializer.Deserialize<UserEvent>(json);
+                if (userEvent == null)
+                {
+                    Console.WriteLine("Некорректный JSON UserEvent:" + json);
+                }
+                return userEvent;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Произошла ошибка при десериализации UserEvent:" + ex.Message);
+                return null;
             }
         }
     }

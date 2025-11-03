@@ -4,7 +4,6 @@ namespace McdisTest.Services
 {
     public class EventObserver : IObserver<UserEvent>
     {
-        private readonly string _name;
         private readonly DataStorage _storage;
 
         public EventObserver(DataStorage storage)
