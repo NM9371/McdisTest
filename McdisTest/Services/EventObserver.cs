@@ -1,5 +1,6 @@
 ﻿using McdisTest.Data;
 using McdisTest.Models;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace McdisTest.Services
@@ -8,10 +9,19 @@ namespace McdisTest.Services
     {
         private readonly IUserEventStatsStorage _storage;
         private readonly ILogger<EventObserver> _logger;
+        private readonly DateTime? _filterStartDate = null;
+        private readonly DateTime? _filterEndDate = null;
 
-        public EventObserver(IUserEventStatsStorage storage, ILogger<EventObserver> logger)
+
+        public EventObserver(IConfiguration configuration, IUserEventStatsStorage storage, ILogger<EventObserver> logger)
         {
-            _storage = storage ?? throw new ArgumentNullException(nameof(storage));
+            if (DateTime.TryParse(configuration["EVENT_FILTER_START_DATE"], out var start))
+                _filterStartDate = DateTime.SpecifyKind(start, DateTimeKind.Utc);
+
+            if (DateTime.TryParse(configuration["EVENT_FILTER_END_DATE"], out var end))
+                _filterEndDate = DateTime.SpecifyKind(end, DateTimeKind.Utc);
+
+            _storage = storage;
             _logger = logger;
         }
 
@@ -25,10 +35,32 @@ namespace McdisTest.Services
             _logger.LogInformation("Наблюдатель: Произошла ошибка:"+error.Message);
         }
 
-        public void OnNext(UserEvent value)
+        public void OnNext(UserEvent userEvent)
         {
-            _logger.LogInformation($"Наблюдатель: Получено новое событие {value.EventType} от пользователя {value.UserId} в {value.Timestamp}");
-            Task.Run(async () => await _storage.SaveStatsAsync(value));
+            if (!EventFilter(userEvent))
+            {
+                _logger.LogInformation($"Наблюдатель: Событие {userEvent.EventType} от пользователя {userEvent.UserId} в {userEvent.Timestamp} отфильтровано");
+                return;
+            }
+
+            _logger.LogInformation($"Наблюдатель: Получено новое событие {userEvent.EventType} от пользователя {userEvent.UserId} в {userEvent.Timestamp}");
+            Task.Run(async () => await _storage.SaveStatsAsync(userEvent));
+        }
+
+        private bool EventFilter(UserEvent userEvent)
+        {
+            if (_filterStartDate == null && _filterEndDate == null)
+                return true;
+
+            var ts = userEvent.Timestamp;
+
+            if (_filterStartDate != null && ts < _filterStartDate.Value)
+                return false;
+
+            if (_filterEndDate != null && ts > _filterEndDate.Value)
+                return false;
+
+            return true;
         }
     }
 }
