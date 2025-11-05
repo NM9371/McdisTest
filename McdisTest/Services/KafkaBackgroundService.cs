@@ -12,15 +12,15 @@ public class KafkaBackgroundService : BackgroundService
         _logger = logger;
     }
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override async Task ExecuteAsync(CancellationToken ct)
     {
         try
         {
-            while (!stoppingToken.IsCancellationRequested)
+            while (!ct.IsCancellationRequested)
             {
-                _consumer.ProcessNextMessage(stoppingToken);
+                _consumer.ProcessNextMessage(ct);
                 // Таймаут перед повторным чтением сообщений
-                await Task.Delay(100, stoppingToken);
+                await Task.Delay(100, ct);
             }
         }
         catch(Exception ex)

@@ -50,11 +50,11 @@ public class KafkaConsumer
         _eventObservable = eventObservable;
     }
 
-    public void ProcessNextMessage(CancellationToken cancellationToken)
+    public void ProcessNextMessage(CancellationToken ct)
     {
         try
         {
-            var result = _consumer.Consume(cancellationToken);
+            var result = _consumer.Consume(ct);
 
             var userEvent = DeserializeUserEvent(result.Message.Value, _logger);
             if (userEvent != null)

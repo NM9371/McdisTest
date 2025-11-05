@@ -44,8 +44,8 @@ services:
         kafka:
           condition: service_started
     environment:
-        EVENT_FILTER_START_DATE: "2025-01-05T10:00:00Z"
-        EVENT_FILTER_END_DATE: "2025-12-05T14:00:00Z"
+        EVENT_FILTER_START_DATE: "2025-01-01T00:00:00Z"
+        EVENT_FILTER_END_DATE: "2025-12-31T23:59:59Z"
         KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
         KAFKA_TOPIC: "user-events"
         KAFKA_GROUP_ID: "user-event-consumer-group"
