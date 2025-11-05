@@ -1,6 +1,5 @@
 ﻿using FluentAssertions;
-using McdisTest.Data;
-using McdisTest.Services;
+using Microsoft.Extensions.Logging;
 using Moq;
 
 public class KafkaConsumerTests
@@ -43,8 +42,11 @@ public class KafkaConsumerTests
         "click")]
     public void DeserializeUserEvent_ShouldDeserializeValidJson(string json, int userId, string eventType)
     {
+        //Arrange
+        var loggerMock = new Mock<ILogger<KafkaConsumer>>();
+
         //Act
-        var result = KafkaConsumer.DeserializeUserEvent(json);
+        var result = KafkaConsumer.DeserializeUserEvent(json, loggerMock.Object);
 
         //Assert
         result.Should().NotBeNull();
@@ -77,8 +79,11 @@ public class KafkaConsumerTests
     [InlineData("")]
     public void DeserializeUserEvent_ShouldReturnNull_WhenJsonInvalid(string json)
     {
+        //Arrange
+        var loggerMock = new Mock<ILogger<KafkaConsumer>>();
+
         //Act
-        var result = KafkaConsumer.DeserializeUserEvent(json);
+        var result = KafkaConsumer.DeserializeUserEvent(json, loggerMock.Object);
 
         //Assert
         result.Should().BeNull();

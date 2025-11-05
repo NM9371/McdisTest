@@ -1,19 +1,31 @@
-﻿using Npgsql;
+﻿using McdisTest.Models;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+using Npgsql;
 
 namespace McdisTest.Data
 {
-    public class DataStorage
+    public class UserEventStatsPGStorage : IUserEventStatsStorage
     {
         private readonly string _connectionString;
+        private readonly ILogger<UserEventStatsPGStorage> _logger;
 
-        public DataStorage(string connectionString)
+        public UserEventStatsPGStorage(IConfiguration configuration, ILogger<UserEventStatsPGStorage> logger)
         {
-            _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
+            _logger = logger;
+
+            var conn = configuration["POSTGRES_CONNECTION"];
+            if (string.IsNullOrEmpty(conn))
+            {
+                _logger.LogCritical("Переменная окружения POSTGRES_CONNECTION не найдена");
+                throw new InvalidOperationException("Переменная окружения POSTGRES_CONNECTION не найдена");
+            }
+            _connectionString = conn;
         }
 
         public async Task SaveStatsAsync(UserEvent userEvent)
         {
-            const string sql = @"
+            const string sql = @"   
                 INSERT INTO user_event_stats(user_id, event_type, count)
                 VALUES (@user_id, @event_type, 1)
                 ON CONFLICT (user_id, event_type)
@@ -28,7 +40,7 @@ namespace McdisTest.Data
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine("PGSQL: Произошла ошибка во время открытия подключения: "+ex.Message);
+                    _logger.LogError("PGSQL: Произошла ошибка во время открытия подключения: "+ex.Message);
                 }
 
                 using (var cmd = new NpgsqlCommand(sql, conn))
@@ -38,11 +50,11 @@ namespace McdisTest.Data
                     try
                     {
                         await cmd.ExecuteNonQueryAsync();
-                        Console.WriteLine($"PGSQL: В БД сохранено новое событие {userEvent.EventType} от пользователя {userEvent.UserId}");
+                        _logger.LogInformation($"PGSQL: В БД сохранено новое событие {userEvent.EventType} от пользователя {userEvent.UserId}");
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine("PGSQL: Произошла ошибка при сохранении данных: "+ex.Message);
+                        _logger.LogError("PGSQL: Произошла ошибка при сохранении данных: "+ex.Message);
                     }
                 }
             }
@@ -66,7 +78,7 @@ namespace McdisTest.Data
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine("PGSQL: Произошла ошибка во время открытия подключения к PGSQL: "+ex.Message);
+                    _logger.LogError("PGSQL: Произошла ошибка во время открытия подключения: "+ex.Message);
                 }
 
                 using (var cmd = new NpgsqlCommand(sql, conn))
@@ -77,7 +89,7 @@ namespace McdisTest.Data
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine("PGSQL: Произошла ошибка при создании таблицы: "+ex.Message);
+                        _logger.LogError("PGSQL: Произошла ошибка при создании таблицы: "+ex.Message);
                     }
                 }
             }

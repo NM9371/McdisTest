@@ -1,93 +1,95 @@
 ﻿using Confluent.Kafka;
-using McdisTest.Data;
+using McdisTest.Models;
+using McdisTest.Services;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using System.Text.Json;
 
-namespace McdisTest.Services
+public class KafkaConsumer
 {
-    public class KafkaConsumer
+    private readonly ILogger<KafkaConsumer> _logger;
+    private readonly IConsumer<Ignore, string> _consumer;
+    private readonly IEventObservable _eventObservable;
+
+    public KafkaConsumer(IEventObservable eventObservable, IConfiguration configuration, ILogger<KafkaConsumer> logger)
     {
-        private readonly string _bootstrapServers;
-        private readonly string _topic;
-        private readonly string _groupId;
-        private readonly EventObservable _eventObservable;
+        _logger = logger;
 
-        public KafkaConsumer(string bootstrapServers, string topic, string groupId, EventObservable eventObservable)
+        var bootstrapServers = configuration["KAFKA_BOOTSTRAP_SERVERS"];
+        var topic = configuration["KAFKA_TOPIC"];
+        var groupId = configuration["KAFKA_GROUP_ID"];
+
+        if (string.IsNullOrEmpty(bootstrapServers))
         {
-            _bootstrapServers = bootstrapServers;
-            _topic = topic;
-            _groupId = groupId;
-            _eventObservable = eventObservable;
+            _logger.LogCritical("Переменная окружения KAFKA_BOOTSTRAP_SERVERS не найдена");
+            throw new InvalidOperationException("Переменная окружения KAFKA_BOOTSTRAP_SERVERS не найдена");
+        }
+        if (string.IsNullOrEmpty(topic))
+        {
+            _logger.LogCritical("Переменная окружения KAFKA_TOPIC не найдена");
+            throw new InvalidOperationException("Переменная окружения KAFKA_TOPIC не найдена");
+        }
+        if (string.IsNullOrEmpty(groupId))
+        {
+            _logger.LogCritical("Переменная окружения KAFKA_GROUP_ID не найдена");
+            throw new InvalidOperationException("Переменная окружения KAFKA_GROUP_ID не найдена");
         }
 
-        public void Start()
+        var config = new ConsumerConfig
         {
-            var config = new ConsumerConfig
-            {
-                BootstrapServers = _bootstrapServers,
-                GroupId = _groupId,
-                AutoOffsetReset = AutoOffsetReset.Earliest,
-                EnableAutoCommit = true
-            };
+            BootstrapServers = bootstrapServers,
+            GroupId = groupId,
+            AutoOffsetReset = AutoOffsetReset.Earliest,
+            EnableAutoCommit = true
+        };
 
+        _consumer = new ConsumerBuilder<Ignore, string>(config).Build();
+        _consumer.Subscribe(topic);
+        _logger.LogInformation("Ожидание событий в топике Kafka: " + topic);
 
-            IConsumer<Ignore, string> consumer;
-            try
-            {
-                consumer = new ConsumerBuilder<Ignore, string>(config).Build();
-            }
-            catch (Exception ex)
-            {
-                throw new Exception("Kafka: Произошла ошибка при подключении для чтения: " + ex.Message);
-            }
+        _eventObservable = eventObservable;
+    }
 
-            try
-            {
-                consumer.Subscribe(_topic);
-                Console.WriteLine($"Ожидание событий в топике Kafka: " + _topic);
-            }
-            catch (Exception ex)
-            {
-                throw new Exception("Kafka: Произошла ошибка при подписке на топик: " + ex.Message);
-            }
+    public void ProcessNextMessage(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = _consumer.Consume(cancellationToken);
 
-            try
+            var userEvent = DeserializeUserEvent(result.Message.Value, _logger);
+            if (userEvent != null)
             {
-                while (true)
-                {
-                    var result = consumer.Consume();
-
-                    // Парсим JSON-сообщение в UserEvent
-                    var userEvent = DeserializeUserEvent(result.Message.Value);
-
-                    if (userEvent != null)
-                    {
-                        // Публикуем событие в observable
-                        _eventObservable.Publish(userEvent);
-                    }
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                consumer.Close();
+                _logger.LogInformation("Публикация события в Observable");
+                _eventObservable.Publish(userEvent);
             }
         }
-
-        public static UserEvent? DeserializeUserEvent(string json)
+        catch (OperationCanceledException)
         {
-            try
+            _logger.LogInformation("KafkaConsumer остановлен через токен отмены.");
+            _consumer.Close();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogCritical("Kafka: Произошла ошибка при подключении для чтения: " + ex.Message);
+            throw new Exception("Kafka: Произошла ошибка при подключении для чтения: " + ex.Message);
+        }
+    }
+
+    public static UserEvent? DeserializeUserEvent(string json, ILogger<KafkaConsumer> logger)
+    {
+        try
+        {
+            UserEvent? userEvent = JsonSerializer.Deserialize<UserEvent>(json);
+            if (userEvent == null)
             {
-                UserEvent? userEvent = JsonSerializer.Deserialize<UserEvent>(json);
-                if (userEvent == null)
-                {
-                    Console.WriteLine("Некорректный JSON UserEvent:" + json);
-                }
-                return userEvent;
+                logger.LogWarning("Некорректный JSON UserEvent:" + json);
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Произошла ошибка при десериализации UserEvent:" + ex.Message);
-                return null;
-            }
+            return userEvent;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning("Произошла ошибка при десериализации UserEvent:" + ex.Message);
+            return null;
         }
     }
 }

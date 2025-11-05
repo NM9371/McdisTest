@@ -1,7 +1,7 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace McdisTest.Data
+namespace McdisTest.Models
 {
     public class UserEvent
     {

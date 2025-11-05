@@ -1,9 +1,9 @@
-﻿using McdisTest.Data;
+﻿using McdisTest.Models;
 using System.Reactive.Subjects;
 
 namespace McdisTest.Services
 {
-    public class EventObservable : IObservable<UserEvent>
+    public class EventObservable : IEventObservable
     {
         private readonly Subject<UserEvent> _subject = new Subject<UserEvent>();
 

@@ -1,29 +1,33 @@
 ﻿using McdisTest.Data;
+using McdisTest.Models;
+using Microsoft.Extensions.Logging;
 
 namespace McdisTest.Services
 {
     public class EventObserver : IObserver<UserEvent>
     {
-        private readonly DataStorage _storage;
+        private readonly IUserEventStatsStorage _storage;
+        private readonly ILogger<EventObserver> _logger;
 
-        public EventObserver(DataStorage storage)
+        public EventObserver(IUserEventStatsStorage storage, ILogger<EventObserver> logger)
         {
             _storage = storage ?? throw new ArgumentNullException(nameof(storage));
+            _logger = logger;
         }
 
         public void OnCompleted()
         {
-            Console.WriteLine("Наблюдатель: Работа завершена");
+            _logger.LogInformation("Наблюдатель: Работа завершена");
         }
 
         public void OnError(Exception error)
         {
-            Console.WriteLine("Наблюдатель: Произошла ошибка:"+error.Message);
+            _logger.LogInformation("Наблюдатель: Произошла ошибка:"+error.Message);
         }
 
         public void OnNext(UserEvent value)
         {
-            Console.WriteLine($"Наблюдатель: Получено новое событие {value.EventType} от пользователя {value.UserId} в {value.Timestamp}");
+            _logger.LogInformation($"Наблюдатель: Получено новое событие {value.EventType} от пользователя {value.UserId} в {value.Timestamp}");
             Task.Run(async () => await _storage.SaveStatsAsync(value));
         }
     }
